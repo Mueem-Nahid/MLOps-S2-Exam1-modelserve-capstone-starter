@@ -1,0 +1,40 @@
+# Git
+.git
+.github
+
+# Claude Code
+.agents
+
+# Documentation
+*.md
+!README.md
+docs/
+diagrams/
+
+# Tests
+tests/
+testing/
+
+# Training data
+*.csv
+training/
+
+# Python
+*.pyc
+__pycache__/
+
+# Environment
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# Infrastructure (not needed in container)
+infrastructure/
+
+# Monitoring
+monitoring/grafana/dashboards/
+
+# Scripts (not needed in production container)
+scripts/
