@@ -38,7 +38,7 @@ services:
       start_period: 5s
 
   mlflow:
-    image: ghcr.io/mlflow-project/mlflow:latest
+    image: ghcr.io/mlflow/mlflow:latest
     container_name: modelserve-mlflow
     command: mlflow server --backend-store-uri postgresql://mlflow:mlflow_password@postgres:5432/mlflow --default-artifact-root /mlflow/artifacts --host 0.0.0.0 --port 5000
     ports:
