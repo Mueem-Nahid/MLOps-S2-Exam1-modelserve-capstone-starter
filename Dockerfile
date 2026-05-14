@@ -1,28 +1,44 @@
+# syntax=docker/dockerfile:1
+
 # ============================================================================
-# ModelServe — FastAPI Inference Service Dockerfile
+# Stage 1: Builder
 # ============================================================================
-# TODO: Implement a multi-stage Docker build.
-#
-# Requirements:
-#   - Multi-stage build (at least two FROM statements)
-#   - Final image must be under 800 MB
-#   - Must run as a non-root user
-#   - Must use a production WSGI/ASGI server (gunicorn with uvicorn workers)
-#   - Must include a HEALTHCHECK directive
-#   - Must copy only what's needed (use .dockerignore too)
-#
-# Suggested stages:
-#   Stage 1 (builder):
-#     - Start from python:3.10-slim
-#     - Install build dependencies (gcc, etc.)
-#     - Copy requirements.txt and install Python packages
-#
-#   Stage 2 (runtime):
-#     - Start from python:3.10-slim (clean)
-#     - Copy installed packages from builder stage
-#     - Copy application code
-#     - Create a non-root user and switch to it
-#     - Expose the service port
-#     - Set the healthcheck
-#     - Define the CMD with gunicorn/uvicorn
+FROM python:3.10-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
 # ============================================================================
+# Stage 2: Runtime
+# ============================================================================
+FROM python:3.10-slim AS runtime
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash appuser
+
+COPY --from=builder /install /usr/local
+
+COPY app/ ./app/
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "app.main:app"]
