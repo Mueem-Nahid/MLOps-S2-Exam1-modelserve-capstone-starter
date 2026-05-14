@@ -2,14 +2,16 @@
 # ModelServe — MLflow Model Loader
 # ============================================================================
 
-import logging
 import os
 from typing import Any, Optional
 
 import mlflow
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from logger import get_logger
+
+
+logger = get_logger(__name__)
 
 
 class ModelLoader:
@@ -24,14 +26,24 @@ class ModelLoader:
     def _load_model(self) -> None:
         try:
             mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-            model_stage = os.environ.get("MODEL_STAGE", "Production")
-            model_uri = f"models:/{self.model_name}/{model_stage}"
+            model_alias = os.environ.get("MODEL_ALIAS")
+            model_stage = os.environ.get("MODEL_STAGE")
+
+            if model_alias or not model_stage:
+                model_alias = model_alias or "production"
+                model_uri = f"models:/{self.model_name}@{model_alias}"
+            else:
+                model_uri = f"models:/{self.model_name}/{model_stage}"
+
             self._model = mlflow.pyfunc.load_model(model_uri)
 
             client = mlflow.MlflowClient()
-            latest_version = client.get_latest_versions(self.model_name, stages=[model_stage])
-            if latest_version:
-                self._version = str(latest_version[0].version)
+            if model_alias:
+                model_version = client.get_model_version_by_alias(self.model_name, model_alias)
+                self._version = str(model_version.version)
+            elif model_stage:
+                latest_version = client.get_latest_versions(self.model_name, stages=[model_stage])
+                self._version = str(latest_version[0].version) if latest_version else "unknown"
             else:
                 self._version = "unknown"
 

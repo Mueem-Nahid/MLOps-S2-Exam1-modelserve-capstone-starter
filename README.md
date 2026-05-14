@@ -58,7 +58,8 @@ Default Grafana login is `admin` / `admin123` unless overridden.
 | Variable | Description | Default |
 | --- | --- | --- |
 | `MODEL_NAME` | MLflow registered model name loaded by the API. | `fraud_detection_model` |
-| `MODEL_STAGE` | MLflow model stage to serve. | `Production` |
+| `MODEL_ALIAS` | MLflow model alias to serve. | `production` |
+| `MODEL_STAGE` | Optional legacy MLflow model stage to serve if `MODEL_ALIAS` is unset. | unset |
 | `MLFLOW_TRACKING_URI` | MLflow tracking server URL. | `http://mlflow:5000` |
 | `FEAST_REPO_PATH` | Path to the Feast repository inside the API container. | `/app/feast_repo` |
 | `REDIS_HOST` | Redis host for Feast online store. | `redis` |

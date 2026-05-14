@@ -1,3 +1,19 @@
 {
-    "entity_id": 2703186189652095
+    "entity_id": 2703186189652095,
+    "cc_num": 2703186189652095,
+    "amt": 4.97,
+    "lat": 36.0788,
+    "long": -81.1781,
+    "city_pop": 3495,
+    "unix_time": 1325376018,
+    "merch_lat": 36.011293,
+    "merch_long": -82.048315,
+    "hour_of_day": 0,
+    "day_of_week": 1,
+    "is_weekend": 0,
+    "is_night": 1,
+    "amt_log": 1.7867469274045107,
+    "distance_km": 78.59756848823127,
+    "category_encoded": 0,
+    "event_timestamp": "2019-01-01T00:00:18+00:00"
 }

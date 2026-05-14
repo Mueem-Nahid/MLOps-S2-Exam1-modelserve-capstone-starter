@@ -1,4 +1,3 @@
-import logging
 import os
 from datetime import datetime
 from typing import Optional
@@ -11,9 +10,9 @@ from pydantic import BaseModel
 from app.feature_client import FeatureClient, FEATURE_COLUMNS
 from app.metrics import model_version_info, prediction_duration_seconds, prediction_errors_total, prediction_requests_total
 from app.model_loader import ModelLoader
+from logger import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 app = FastAPI(title="ModelServe", version="1.0.0")
 

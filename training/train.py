@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import math
 import mlflow
@@ -6,15 +7,27 @@ import mlflow.sklearn
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from mlflow.models import infer_signature
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+
+from logger import get_logger
+
+
+logger = get_logger(__name__)
+
 TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
 DATA_PATH = os.path.join(os.path.dirname(__file__), "fraudTrain.csv")
 FEATURES_PARQUET_PATH = os.path.join(os.path.dirname(__file__), "features.parquet")
 SAMPLE_REQUEST_PATH = os.path.join(os.path.dirname(__file__), "sample_request.json")
+MODEL_NAME = os.environ.get("MODEL_NAME", "fraud_detection_model")
+MODEL_ALIAS = os.environ.get("MODEL_ALIAS", "production")
 
 FEATURE_COLS = [
     "cc_num", "amt", "lat", "long", "city_pop", "unix_time",
@@ -23,6 +36,7 @@ FEATURE_COLS = [
 ]
 
 LABEL_COL = "is_fraud"
+FEAST_EXPORT_COLS = ["cc_num", "event_timestamp"] + [col for col in FEATURE_COLS if col != "cc_num"]
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -66,22 +80,22 @@ def main():
     mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment("fraud_detection")
 
-    print(f"Loading data from {DATA_PATH} ...")
+    logger.info("Loading data from %s ...", DATA_PATH)
     df = pd.read_csv(DATA_PATH)
-    print(f"Loaded {len(df)} rows")
+    logger.info("Loaded %s rows", len(df))
 
     df = engineer_features(df)
 
     X = prepare_features(df, FEATURE_COLS)
     y = df[LABEL_COL]
 
-    print(f"Target distribution: {y.value_counts().to_dict()}")
+    logger.info("Target distribution: %s", y.value_counts().to_dict())
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    with mlflow.start_run(run_name="fraud_rf_training"):
+    with mlflow.start_run(run_name="fraud_rf_training") as run:
         params = {
             "n_estimators": 100,
             "max_depth": 10,
@@ -109,24 +123,33 @@ def main():
 
         for name, value in metrics.items():
             mlflow.log_metric(name, value)
-            print(f"  {name}: {value:.4f}")
+            logger.info("%s: %.4f", name, value)
 
-        mlflow.sklearn.log_model(model, "fraud_model", registered_model_name="fraud_detection_model")
+        input_example = X_train.head(5)
+        signature = infer_signature(input_example, model.predict(input_example))
+        mlflow.sklearn.log_model(
+            model,
+            "fraud_model",
+            registered_model_name=MODEL_NAME,
+            signature=signature,
+            input_example=input_example,
+        )
 
     client = mlflow.MlflowClient()
-    model_name = "fraud_detection_model"
-    latest_version = client.get_latest_versions(model_name, stages=["None"])[-1].version
+    run_versions = [
+        version for version in client.search_model_versions(f"name='{MODEL_NAME}'")
+        if version.run_id == run.info.run_id
+    ]
+    if not run_versions:
+        raise RuntimeError(f"No registered model version found for run {run.info.run_id}")
 
-    client.transition_model_version_stage(
-        name=model_name,
-        version=int(latest_version),
-        stage="Production"
-    )
-    print(f"Model version {latest_version} transitioned to Production")
+    latest_version = max(run_versions, key=lambda version: int(version.version)).version
+    client.set_registered_model_alias(MODEL_NAME, MODEL_ALIAS, latest_version)
+    logger.info("Model version %s assigned alias '%s'", latest_version, MODEL_ALIAS)
 
-    feast_df = df[["cc_num", "event_timestamp"] + FEATURE_COLS].copy()
+    feast_df = df[FEAST_EXPORT_COLS].copy()
     feast_df.to_parquet(FEATURES_PARQUET_PATH, index=False)
-    print(f"Saved features.parquet to {FEATURES_PARQUET_PATH}")
+    logger.info("Saved features.parquet to %s", FEATURES_PARQUET_PATH)
 
     sample_cc_num = int(df["cc_num"].iloc[0])
     sample_row = df.iloc[0]
@@ -149,10 +172,15 @@ def main():
         "category_encoded": int(sample_row["category_encoded"]),
         "event_timestamp": sample_row["event_timestamp"].isoformat()
     }
-    with open(SAMPLE_REQUEST_PATH, "w") as f:
+    with open(SAMPLE_REQUEST_PATH, "w", encoding="utf-8") as f:
         json.dump(sample_request, f, indent=4)
-    print(f"Saved sample_request.json to {SAMPLE_REQUEST_PATH}")
+        f.write("\n")
+    logger.info("Saved sample_request.json to %s", SAMPLE_REQUEST_PATH)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logger.exception("Training failed")
+        raise

@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -7,8 +6,9 @@ import pandas as pd
 from feast import FeatureStore
 
 from app.metrics import feast_online_store_hits_total, feast_online_store_misses_total
+from logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 FEATURE_VIEW_NAME = "fraud_features"
 REPO_PATH = Path(os.environ.get("FEAST_REPO_PATH", Path(__file__).parent.parent / "feast_repo"))

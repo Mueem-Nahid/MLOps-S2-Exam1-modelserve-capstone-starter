@@ -13,6 +13,7 @@ venv/
 !.env.example
 
 # Data and generated ML artifacts
+logs/
 training/*.csv
 training/*.pkl
 training/features.parquet
